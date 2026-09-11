@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Assistant</title>
+<style>
+  :root {
+    --bg: #14181f;
+    --panel: #1b212b;
+    --panel-2: #202834;
+    --border: #2b3340;
+    --text: #e8edf3;
+    --dim: #8791a1;
+    --dimmer: #5b6472;
+    --amber: #ffb454;
+    --amber-dim: #ffb45433;
+    --green: #6bcf9a;
+    --red: #e5677a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(ellipse at top, #1a2029 0%, #14181f 60%);
+    color: var(--text);
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 48px 20px 80px;
+  }
+  .wrap { width: 100%; max-width: 660px; }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--amber), #ff8a54);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 4px 16px var(--amber-dim);
+  }
+  .brand-text h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .brand-text p {
+    font-size: 12px;
+    color: var(--dim);
+    margin: 2px 0 0;
+  }
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--dim);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-switch {
+    width: 34px; height: 19px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    position: relative;
+    transition: background 0.2s ease;
+  }
+  .toggle-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 13px; height: 13px;
+    background: var(--dim);
+    border-radius: 50%;
+    transition: all 0.2s ease;
+  }
+  .toggle.on .toggle-switch { background: var(--amber-dim); border-color: var(--amber); }
+  .toggle.on .toggle-switch::after { left: 17px; background: var(--amber); }
+
+  .mic-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px 26px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin-bottom: 20px;
+  }
+  #mic-btn {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--panel-2);
+    color: var(--dim);
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+  }
+  #mic-btn:hover { border-color: var(--dimmer); }
+  #mic-btn svg { width: 22px; height: 22px; }
+  #mic-btn.live {
+    border-color: var(--amber);
+    color: var(--amber);
+    box-shadow: 0 0 0 6px var(--amber-dim);
+  }
+  #mic-btn.speaking {
+    border-color: var(--green);
+    color: var(--green);
+    box-shadow: 0 0 0 6px #6bcf9a2b;
+  }
+
+  .mic-info { flex: 1; min-width: 0; }
+  .status-text { font-size: 14px; font-weight: 500; margin-bottom: 10px; }
+  .status-text .sub { color: var(--dim); font-weight: 400; }
+
+  .waveform {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 22px;
+  }
+  .waveform span {
+    display: block;
+    width: 3px;
+    min-height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: height 0.08s ease, background 0.15s ease;
+  }
+  .waveform.active span { background: var(--amber); }
+
+  .transcript {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    min-height: 80px;
+  }
+  .transcript:empty::before {
+    content: "Conversation will appear here";
+    color: var(--dimmer);
+    font-size: 13px;
+  }
+  .bubble-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: flex-start;
+  }
+  .bubble-row:last-child { margin-bottom: 0; }
+  .bubble-row.user { flex-direction: row-reverse; }
+  .avatar {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 1px;
+  }
+  .avatar.you { background: var(--panel-2); color: var(--dim); border: 1px solid var(--border); }
+  .avatar.assistant { background: linear-gradient(135deg, var(--amber), #ff8a54); color: #1a1206; }
+  .bubble {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .bubble-row.user .bubble {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-top-right-radius: 4px;
+  }
+  .bubble-row.assistant .bubble {
+    background: linear-gradient(135deg, #2a2115, #201a12);
+    border: 1px solid #4a3a1f;
+    border-top-left-radius: 4px;
+  }
+  .latency-chip {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--green);
+    background: #6bcf9a1a;
+    border: 1px solid #6bcf9a33;
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-top: 6px;
+  }
+
+  .log-wrap {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+  .log-wrap.open { max-height: 340px; }
+  .log {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px;
+    line-height: 1.8;
+    color: var(--dim);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .log .lat { color: var(--green); }
+  .log .err { color: var(--red); }
+  .log-line { opacity: 0; animation: fadeIn 0.2s ease forwards; }
+  @keyframes fadeIn { to { opacity: 1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">🎙️</div>
+      <div class="brand-text">
+        <h1>Voice Assistant</h1>
+        <p>Real-time streaming pipeline — Phase 1</p>
+      </div>
+    </div>
+    <div class="toggle" id="log-toggle">
+      <span>Technical view</span>
+      <div class="toggle-switch"></div>
+    </div>
+  </div>
+
+  <div class="mic-card">
+    <button id="mic-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+        <line x1="12" y1="19" x2="12" y2="23"></line>
+        <line x1="8" y1="23" x2="16" y2="23"></line>
+      </svg>
+    </button>
+    <div class="mic-info">
+      <div class="status-text" id="status">Tap the mic to start <span class="sub">— speak, then pause to send</span></div>
+      <div class="waveform" id="waveform"></div>
+    </div>
+  </div>
+
+  <div class="transcript" id="transcript"></div>
+
+  <div class="log-wrap" id="log-wrap">
+    <div class="log" id="log"></div>
+  </div>
+
+</div>
+
+<script>
+const WS_URL = "ws://localhost:8000/ws";
+const TARGET_SAMPLE_RATE = 16000;
+const BAR_COUNT = 28;
+
+let ws = null;
+let audioCtx = null;
+let micStream = null;
+let processorNode = null;
+let listening = false;
+
+let sentenceChunks = [];
+let playbackQueue = [];
+let isPlaying = false;
+
+const micBtn = document.getElementById("mic-btn");
+const statusEl = document.getElementById("status");
+const waveformEl = document.getElementById("waveform");
+const transcriptEl = document.getElementById("transcript");
+const logEl = document.getElementById("log");
+const logWrap = document.getElementById("log-wrap");
+const logToggle = document.getElementById("log-toggle");
+
+for (let i = 0; i < BAR_COUNT; i++) {
+  const bar = document.createElement("span");
+  bar.style.height = "3px";
+  waveformEl.appendChild(bar);
+}
+const bars = waveformEl.querySelectorAll("span");
+
+logToggle.addEventListener("click", () => {
+  logToggle.classList.toggle("on");
+  logWrap.classList.toggle("open");
+});
+
+function log(text, cls) {
+  const line = document.createElement("div");
+  line.className = "log-line" + (cls ? " " + cls : "");
+  const t = new Date().toLocaleTimeString();
+  line.textContent = `${t}  ${text}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function addBubble(role, text) {
+  const row = document.createElement("div");
+  row.className = "bubble-row " + role;
+
+  const avatar = document.createElement("div");
+  avatar.className = "avatar " + (role === "user" ? "you" : "assistant");
+  avatar.textContent = role === "user" ? "Y" : "A";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  transcriptEl.appendChild(row);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  return bubble;
+}
+
+function addLatencyChip(bubble, ms) {
+  const chip = document.createElement("div");
+  chip.className = "latency-chip";
+  chip.textContent = `${ms}ms`;
+  bubble.appendChild(chip);
+}
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.binaryType = "arraybuffer";
+
+  ws.onopen = () => log("connected to backend");
+  ws.onclose = () => log("disconnected");
+  ws.onerror = () => log("websocket error — is the backend running?", "err");
+
+  let currentAssistantBubble = null;
+
+  ws.onmessage = (event) => {
+    if (typeof event.data === "string") {
+      const msg = JSON.parse(event.data);
+
+      switch (msg.type) {
+        case "session.ready":
+          log("session ready");
+          break;
+        case "transcript.final": {
+          const b = addBubble("user", msg.text);
+          addLatencyChip(b, msg.latency_ms);
+          log(`transcript (${msg.latency_ms}ms): "${msg.text}"`, "lat");
+          currentAssistantBubble = null;
+          break;
+        }
+        case "llm.first_token":
+          log(`llm first token: ${msg.latency_ms}ms`, "lat");
+          break;
+        case "llm.token":
+          if (!currentAssistantBubble) {
+            currentAssistantBubble = addBubble("assistant", "");
+          }
+          currentAssistantBubble.textContent += msg.text;
+          break;
+        case "tts.first_byte":
+          log(`tts first byte: ${msg.latency_ms}ms`, "lat");
+          break;
+        case "tts.sentence_start":
+          sentenceChunks = [];
+          break;
+        case "tts.sentence_end":
+          if (sentenceChunks.length > 0) {
+            const blob = new Blob(sentenceChunks, { type: "audio/mpeg" });
+            playbackQueue.push(URL.createObjectURL(blob));
+            playNext();
+          }
+          break;
+        case "turn.complete":
+          if (currentAssistantBubble) {
+            addLatencyChip(currentAssistantBubble, msg.total_latency_ms);
+          }
+          log(`turn complete: ${msg.total_latency_ms}ms total`, "lat");
+          break;
+        case "error":
+          log(`error [${msg.stage}]: ${msg.message}`, "err");
+          break;
+      }
+    } else {
+      sentenceChunks.push(event.data);
+    }
+  };
+}
+
+function playNext() {
+  if (isPlaying || playbackQueue.length === 0) return;
+  isPlaying = true;
+  micBtn.classList.add("speaking");
+  const url = playbackQueue.shift();
+  const audio = new Audio(url);
+  audio.onended = () => {
+    isPlaying = false;
+    micBtn.classList.remove("speaking");
+    URL.revokeObjectURL(url);
+    playNext();
+  };
+  audio.play();
+}
+
+function downsampleTo16k(float32, inputRate) {
+  if (inputRate === TARGET_SAMPLE_RATE) return float32;
+  const ratio = inputRate / TARGET_SAMPLE_RATE;
+  const outLength = Math.floor(float32.length / ratio);
+  const out = new Float32Array(outLength);
+  for (let i = 0; i < outLength; i++) {
+    out[i] = float32[Math.floor(i * ratio)];
+  }
+  return out;
+}
+
+function floatToInt16(float32) {
+  const int16 = new Int16Array(float32.length);
+  for (let i = 0; i < float32.length; i++) {
+    const s = Math.max(-1, Math.min(1, float32[i]));
+    int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return int16;
+}
+
+function updateWaveform(input) {
+  const chunkSize = Math.floor(input.length / BAR_COUNT);
+  for (let i = 0; i < BAR_COUNT; i++) {
+    let peak = 0;
+    const start = i * chunkSize;
+    for (let j = start; j < start + chunkSize; j++) {
+      peak = Math.max(peak, Math.abs(input[j] || 0));
+    }
+    const height = Math.max(3, Math.min(22, peak * 90));
+    bars[i].style.height = height + "px";
+  }
+}
+
+async function startListening() {
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(micStream);
+
+  processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
+
+  processorNode.onaudioprocess = (e) => {
+    const input = e.inputBuffer.getChannelData(0);
+
+    if (listening) {
+      waveformEl.classList.add("active");
+      updateWaveform(input);
+    }
+
+    if (!listening || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const down = downsampleTo16k(input, audioCtx.sampleRate);
+    const pcm16 = floatToInt16(down);
+    ws.send(pcm16.buffer);
+  };
+
+  source.connect(processorNode);
+  processorNode.connect(audioCtx.destination);
+
+  listening = true;
+  micBtn.classList.add("live");
+  statusEl.innerHTML = 'Listening <span class="sub">— speak, then pause to send</span>';
+  log("mic started");
+}
+
+function stopListening() {
+  listening = false;
+  micBtn.classList.remove("live");
+  waveformEl.classList.remove("active");
+  statusEl.innerHTML = 'Tap the mic to start <span class="sub">— speak, then pause to send</span>';
+  if (processorNode) processorNode.disconnect();
+  if (micStream) micStream.getTracks().forEach((t) => t.stop());
+  bars.forEach((b) => (b.style.height = "3px"));
+  log("mic stopped");
+}
+
+micBtn.addEventListener("click", async () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) connect();
+  if (listening) {
+    stopListening();
+  } else {
+    await startListening();
+  }
+});
+</script>
+</body>
+</html>
