@@ -10,24 +10,6 @@ from services.asr import transcribe
 from services.llm import stream_response
 from services.tts import stream_speech
 from services.aggregator import SentenceAggregator
-from services.search import web_search
-
-# Simple, explicit rule for "does this question likely need current
-# information?" — deliberately a plain keyword check rather than letting
-# the LLM decide on its own. That opacity (an AI model silently deciding
-# whether to search) is exactly what made behavior unpredictable before;
-# a visible, debuggable rule is more reliable even though it's simpler.
-SEARCH_TRIGGERS = [
-    "today", "tonight", "tomorrow", "yesterday",
-    "current", "currently", "latest", "recent", "recently",
-    "right now", "this week", "this month", "this year",
-    "news", "weather", "score", "stock price", "trending",
-]
-
-
-def needs_search(text: str) -> bool:
-    lowered = text.lower()
-    return any(trigger in lowered for trigger in SEARCH_TRIGGERS)
 
 
 app = FastAPI()
@@ -109,34 +91,32 @@ async def handle_utterance(ws: WebSocket, audio_data: bytes, history: list):
         latency_ms=int((t_asr_done - t_start) * 1000),
     )
 
-    # --- Optional web search grounding ---
-    search_context = ""
-    if needs_search(transcript):
-        await send_event(ws, "search.started")
-        try:
-            search_context = await web_search(transcript)
-        except Exception:
-            search_context = ""  # fail soft — proceed without search context
-        await send_event(ws, "search.done", found=bool(search_context))
-
-    # --- LLM (streaming) + TTS (streamed per-sentence as tokens arrive) ---
+    # --- LLM (streaming, with the model deciding for itself whether it
+    # needs to search) + TTS (streamed per-sentence as tokens arrive) ---
     aggregator = SentenceAggregator()
     full_response = ""
     first_token_seen = False
 
     try:
-        async for token in stream_response(transcript, history, search_context):
-            if not first_token_seen:
-                first_token_seen = True
-                await send_event(
-                    ws, "llm.first_token",
-                    latency_ms=int((time.time() - t_asr_done) * 1000),
-                )
-            full_response += token
-            await send_event(ws, "llm.token", text=token)
+        async for event in stream_response(transcript, history):
+            if event["type"] == "search_started":
+                await send_event(ws, "search.started", query=event["query"])
 
-            for sentence in aggregator.feed(token):
-                await speak_sentence(ws, sentence, t_asr_done)
+            elif event["type"] == "search_done":
+                await send_event(ws, "search.done", found=event["found"])
+
+            elif event["type"] == "token":
+                if not first_token_seen:
+                    first_token_seen = True
+                    await send_event(
+                        ws, "llm.first_token",
+                        latency_ms=int((time.time() - t_asr_done) * 1000),
+                    )
+                full_response += event["text"]
+                await send_event(ws, "llm.token", text=event["text"])
+
+                for sentence in aggregator.feed(event["text"]):
+                    await speak_sentence(ws, sentence, t_asr_done)
 
         for sentence in aggregator.flush():
             await speak_sentence(ws, sentence, t_asr_done)
